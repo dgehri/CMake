@@ -2025,6 +2025,41 @@ void cmQtAutoMocUicT::JobCompileMocT::Process()
     cmd.push_back(outputFile);
     // Add source file
     cmd.push_back(sourceFile);
+
+#ifdef _WIN32
+    // Ensure cmd is less than CommandLineLengthMax characters
+    size_t commandLineLength = cmd.size(); // account for separating spaces
+    for (std::string const& str : cmd) {
+      commandLineLength += str.length();
+    }
+    if (commandLineLength >= CommandLineLengthMax) {
+      // Command line exceeds maximum size allowed by OS
+      // => create response file
+      std::string const responseFile = cmStrCat(outputFile, ".rsp");
+
+      cmsys::ofstream fout(responseFile.c_str());
+      if (!fout) {
+        this->LogError(
+          GenT::MOC,
+          cmStrCat(
+            "The moc process was unable to create a response file at\n  ",
+            this->MessagePath(responseFile)));
+        return;
+      }
+
+      std::vector<std::string>::const_iterator it = cmd.begin();
+      for (++it; it != cmd.end(); ++it) {
+        fout << *it << "\n";
+      }
+      fout.close();
+
+      // Keep all but executable
+      cmd.resize(1);
+
+      // Specify response file
+      cmd.push_back(cmStrCat('@', responseFile));
+    }
+#endif
   }
 
   // Execute moc command
